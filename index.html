@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+ 		<meta charset="utf-8">
+ 		<title>Baseball Athletes Information</title>
+ 		<script type="text/javascript" src="d3/d3.js"></script>
+ 		<style type="text/css">
+
+ 			.axis text {
+  				font: 10px sans-serif;
+			}
+
+			.axis line,
+			.axis path {
+  				fill: none;
+ 				stroke: #000;
+  				shape-rendering: crispEdges;
+			}
+
+			.slideArea {
+                height:50px; 
+				width:100%; 
+				background:#66ccff;
+				text-align: center;
+				line-height: 50px;
+				position: absolute;
+				top:530px;
+			}
+			.drawArea{
+				height:450px; 
+				width:70%; 
+				background:#fff;
+				float: left;
+			}
+			.selectArea{
+				margin-top: 50px;
+				height:450px; 
+				width:30%; 
+				background:#fff;
+				float: left;
+			}
+
+			.links line {
+  				stroke: #999;
+  				stroke-opacity: 0.6;
+			}
+
+			.nodes circle {
+  				stroke: #fff;
+  				stroke-width: 1.5px;
+			}
+ 		</style>
+		
+ 	</head>
+ 	<body>
+ 		<div id = "bar", class = "drawArea">			
+ 		</div>
+ 		<div class = "selectArea">
+ 			<select id = "myselect" onchange="selectFunc()">
+ 				<option>Weight</option>
+ 				<option selected="selected">Height</option>
+ 			</select>
+ 			<button onclick="drawForce()">
+ 				Force-directed layer
+ 			</button>
+ 		</div>
+ 		<div id = "slide", class = "slideArea", val = "2">
+ 			<text>slide in this area to change bin size</textarea>
+ 		</div>		
+ 		<script type="text/javascript">
+ 			// Your beautiful D3 code will go here
+ 			// width and height
+			var w = 800 ;
+			var h = 400;
+			var margin = {left:100, top:50, right:50, bottom:70};
+			var width = w + margin.left + margin.right;
+			var height = h + margin.top + margin.bottom;
+			var attribute = "height";
+			var scale = 3;
+			var dataset;
+			var link;
+			var node;
+
+			var divslide = document.getElementById("slide");
+			divslide.onselectstart = function(){return false;};
+ 			
+ 			d3.csv("baseball_data.csv",function(error,Oridata){
+ 				if(error){
+ 					console.log(error);
+ 				}
+ 				else{
+ 					window.Oridata = Oridata;
+ 					dataset = Oridata.map(function(d){return d.height});
+ 					drawBarChart(dataset,scale);
+ 				}
+
+ 			});
+
+ 			var divM = document.getElementById("bar");
+ 			divM.onclick = function(){
+ 				console.log(d3.select("svg").attr("id"));
+ 				if(d3.select("svg").attr("id") == "pieChart"){
+			   		document.getElementById("bar").innerHTML = "";
+			   		drawBarChart(dataset,scale);
+			   	}
+			   	else if(d3.select("svg").attr("id") == "barChart"){
+			   		document.getElementById("bar").innerHTML = "";
+			   		drawpie(dataset,scale);
+			   	}
+
+ 			}
+
+            // record current mouse position
+ 			var mx = 0;
+			var my = 0;
+			var object = null;
+			function e(event){
+				event.mx = event.pageX || event.clientX + document.body.scrollLeft;
+				event.my = event.pageY || event.clientY + document.body.scrollTop;
+				return event;
+			}
+			document.onmousedown = function(event){
+				event = e(event);
+				object = event.target;
+				if(object.id == "slide"){
+					mx = event.mx;
+					my = event.my;
+					document.onmousemove = move;
+					document.onmouseup = stop; 
+				}
+			}
+
+			function selectFunc(){
+				var select = document.getElementById("myselect").value;
+				if(select == "Height"){
+					dataset = Oridata.map(function(d){return d.height});
+					attribute = "height";
+					document.getElementById("bar").innerHTML = "";
+					drawBarChart(dataset,scale);
+					
+				}
+				else if(select == "Weight"){
+					dataset = Oridata.map(function(d){return d.weight});
+					if(scale<6){
+						scale = 6;
+					}
+					attribute = "weight";
+					document.getElementById("bar").innerHTML = "";
+					drawBarChart(dataset,scale);
+					
+				}
+			}
+
+			function move(event){
+				if(d3.select("svg").attr("id") == "barChart"){
+					event = e(event);
+					tx = parseInt((event.clientX-mx)/40);
+					var elem = document.getElementById("slide");
+    				currentd = parseInt(elem.getAttribute("val"));
+					scale = currentd + tx;
+					if(d3.select("svg").attr("class") == "height"){
+						if(scale <1){
+							scale = 1;
+						}
+					}
+					else if(d3.select("svg").attr("class") == "weight"){
+						if(scale <6){
+							scale = 6;
+						}
+					}
+					
+
+					document.getElementById("bar").innerHTML = "";
+					drawBarChart(dataset,scale);
+				}
+				
+			}
+
+			function stop(event){
+				if(d3.select("svg").attr("id") == "barChart"){
+					event = e(event);
+					ox = parseInt(object.parentNode.offsetLeft); 
+    				oy = parseInt(object.parentNode.offsetTop); 
+    				mx = event.mx; 
+    				my = event.my; 
+    				var elem = document.getElementById("slide");
+     				elem.setAttribute("val",""+scale +"");
+    				object = document.onmousemove = document.onmouseup = null; 
+				}
+				
+			}
+
+ 			function getdata(data,scale){
+ 				var min = d3.min(data);
+			    var max = d3.max(data);
+			    
+			    var range = Math.ceil((max - min + 1)/scale);
+
+			    var tempset = [];
+			    var indexset = [];
+			    for(var i = 0; i<range; i++){
+			    	tempset[i] = 0;
+			    	var start = parseInt(min) + parseInt(i*scale);
+			    	var end = start + parseInt(scale);
+			    	indexset[i] = start + "-" + end;
+			    }
+			    for(var j = 0; j<data.length;j++){
+
+			    	var index = Math.floor((data[j]-min)/scale);
+			    	tempset[index]++;
+			    }
+			   // console.log(indexset);
+			    return [tempset,indexset];
+
+ 			}
+
+ 			function drawBarChart(data,scale){
+
+			    var temp = getdata(data, scale);
+			    var datasetchart = temp[0];
+			    var indexsetchart = temp[1];	
+
+			    var svg = d3.select("#bar")
+ 						.append("svg")
+ 						.attr("id","barChart")
+ 						.attr("width", width)
+ 						.attr("height", height); 
+ 				if(attribute == "height"){
+ 					svg.attr("class","height")
+ 				}
+
+ 				else if(attribute == "weight"){
+ 					svg.attr("class","weight")
+ 				}
+
+			    var xScale = d3.scaleBand()
+ 							.domain(indexsetchart)
+							.rangeRound([0, w])
+							.padding(0.4);
+
+				var yScale = d3.scaleLinear()
+							.domain([0, d3.max(datasetchart)*1.15])
+							.range([h+margin.top, margin.top]);
+
+				var xAxis = d3.axisBottom()
+								.scale(xScale);
+								//.tickValues(indexsetchart);
+
+				var yAxis = d3.axisLeft()
+								.scale(yScale);
+
+				var g = d3.select("svg")
+							.append("g")
+							.attr("transform", "translate("+margin.left+")");
+
+				g.append("g")  
+            		.attr("class","axisx")  
+            		.call(xAxis)  
+            		.attr("transform",function(d){
+            			var tmp = parseFloat(h)+parseFloat(margin.top);
+            			return "translate(0,"+tmp+")"
+            		}) 
+            	 g.selectAll("text")
+            	 	.attr("y",0)
+            	 	.attr("x",9)
+            	 	.attr("dy",".35em")
+            		.attr("transform","rotate(70)")
+            		.style("text-anchor","start"); 
+                  
+        		g.append("g")  
+         		   .attr("class","axisy")           		    
+         		   .call(yAxis)  
+
+         		svg.append("text")
+         			.attr("transform","translate(" + (width/2 + 30) + " ," + (h +margin.top + 60) + ")")
+     				 .style("text-anchor", "middle")
+      				.text(function(d){
+      					if(attribute == "height"){
+      						return "Height";
+      					}
+      					else if(attribute == "weight")
+      					{
+      						return "Weight";
+      					}
+      				});
+         		   
+      			svg.append("text")
+      				.attr("transform", "rotate(-90)")
+      				.attr("y", 0 + margin.left)
+      				.attr("x",0 - (height / 2))
+      				.attr("dy", "-2em")
+      				.style("text-anchor", "middle")
+      				.text("Distribution");      
+
+ 				svg.selectAll("rect")
+			  	 	.data(datasetchart)
+			  	 	.enter()
+			  	 	.append("rect")
+			  	 	.attr("index",function(d,i){
+			  	 		return i;
+			  	 	})
+			  	 	.attr("x", function(d, i) {
+			   			return xScale(indexsetchart[i])+ margin.left;
+			   		})
+			   		.attr("y", function(d) {
+			   			return yScale(d);
+			   		})
+			   		.attr("width", xScale.bandwidth())
+			   		.attr("height", function(d) {
+			   			return h - yScale(d) + margin.top;
+			   		})
+			   		.attr("fill","#1d86ae");
+
+				svg.selectAll("rect")
+					.on("mouseover", function() {
+						
+						var xPosition = d3.select(this).attr("x");
+						var index = d3.select(this).attr("index");
+						var text = svg.append("text");
+						var height = d3.select(this).attr("y");
+						var width = d3.select(this).attr("width")
+
+			   			d3.select(this)
+			   				.attr("y", function(d) {
+			  					return yScale(d) - 30;
+			 				})
+			   				.attr("x",function(d,i){
+			   					
+			   					return parseFloat(xPosition) - parseFloat(width/4) ;
+			   				})
+			   				.attr("width", xScale.bandwidth()*1.5)
+
+			  				.attr("height", function(d) {
+			   			 		return h + margin.top - yScale(d) + 30;
+			  		 		})
+			  				.attr("fill","#ff7f00");
+                        
+                        text.attr("y", function(d) {
+			  					return height - 15;
+			 				})
+			   				.attr("x",function(d,i){
+			   					
+			   					return parseFloat(xPosition) + parseFloat(width/2) ;
+			   				})
+			   				.text(datasetchart[index])
+			   				.attr("text-anchor", "middle")
+			   				.attr("font-family", "sans-serif")
+			   				.attr("font-size", "12px")
+			   				.attr("fill", "white")
+			   				.attr("class","temp");
+
+			   		})
+			   		.on("mouseout", function(d) {
+			   			var xPosition = d3.select(this).attr("x");
+
+				  		 d3.select(this)
+			   				.transition()
+			   				.duration(0)
+			   				.attr("y", function(d) {
+			   					return yScale(d);
+			   				})
+			   				.attr("x",function(d,i){
+			   					
+			   					return parseFloat(xPosition) + parseFloat(xScale.bandwidth()/4);
+			   				})
+							.attr("width", xScale.bandwidth())
+			   				.attr("height", function(d) {
+			   					return h + margin.top - yScale(d);
+			 			 	})
+			  			 	.attr("fill", "#1d86ae");
+			   			svg.selectAll("text.temp")
+			   				.remove();
+			   		});	
+			   	
+ 			}
+
+ 			function drawpie(data,scale){
+
+ 				var temp = getdata(data, scale);
+			    var datasetpie = temp[0];
+			    var indexsetpie = temp[1];
+ 				var radius = Math.min(width,height)/2.3;
+
+ 				var arc = d3.arc()
+ 							.outerRadius(radius - 10)
+ 							.innerRadius(0);
+ 				var labelArc = d3.arc()
+ 								.outerRadius(radius - 40)
+ 								.innerRadius(radius - 40);
+ 				var pie = d3.pie()
+ 							.sort(null)
+ 							.value(function(d){return d});
+ 				var svg = d3.select("#bar")
+ 						.append("svg")
+ 						.attr("id","pieChart")
+ 						.attr("width", width)
+ 						.attr("height", height)
+ 						.append("g")
+ 						.attr("transform","translate(" + width / 2 + "," + height / 2 + ")");
+ 				var g = svg.selectAll(".arc")
+ 							.data(pie(datasetpie))
+ 							.enter()
+ 							.append("g")
+ 							.attr("class","arc");
+ 				var color = d3.scaleOrdinal(d3.schemeCategory20);
+ 				g.append("path")
+ 					.attr("d",arc)
+ 					.style("fill",function(d,i){return color(i);});
+ 				g.append("text")
+ 					.attr("transform", function(d) { 
+ 						var x = arc.centroid(d)[0] * 2.2;
+     					var y = arc.centroid(d)[1] * 2.2;
+     					var midAngle = d.endAngle < Math.PI ? d.startAngle/2 + d.endAngle/2 : d.startAngle/2  + d.endAngle/2 + Math.PI ;
+      					return "translate(" + x + "," + y + ") rotate(-90) rotate(" + (midAngle * 180/Math.PI) + ")";
+ 					})
+      				.attr("text-anchor","middle")
+      				.attr("font-size","10px")
+      				.text(function(d,i) { return indexsetpie[i]; });
+
+ 			}
+
+ 			function drawForce(){
+ 				var Forceheightset = Oridata.map(function(d){return d.height});
+ 				var Forceweightset = Oridata.map(function(d){return d.weight});
+ 				var Forcenameset = Oridata.map(function(d){return d.name});
+ 				var Forcegroupset = [];
+ 				var minHeight = d3.min(Forceheightset);
+ 				var Forcedataset;
+ 				for(var i = 0; i < Forceheightset.length;i++){
+ 					Forcegroupset[i] = Math.floor((Forceheightset[i]-minHeight)/scale);
+ 				}
+ 				var jsonStr = "{\"nodes\":[";
+ 				
+ 				for(var i = 0; i < Forceheightset.length;i++){
+
+ 					jsonStr += "{\"id\":" + "\"" + Forcenameset[i] + "\",\"Weight\":\""+ Forceweightset[i]+"\",\"Height\":\""+Forceheightset[i]+"\",\"group\":" + Forcegroupset[i] + "},";
+ 					
+ 				}
+ 				jsonStr = jsonStr.substr(0,jsonStr.length-1);
+ 				jsonStr += "],\"links\":[";
+ 				
+ 				var count = 0;
+ 				for(var i = 0; i<Forceheightset.length;i++){ 
+ 					for(var j = i+1; j< Forceheightset.length;j++){
+ 						count = count +1;
+ 						var distance = 0.2 * Math.abs(Forceweightset[i]-Forceweightset[j]);
+ 						var heightd = Math.abs(Forceheightset[i] - Forceheightset[j]);
+ 						
+ 						var d = Math.sqrt(parseInt(heightd*heightd) + parseInt(distance*distance));
+ 						if(d<1){
+ 							d =0.1;
+ 						}
+
+ 						if(d < 1.1){
+ 							
+ 							jsonStr += "{\"source\":" + "\"" + Forcenameset[i] + "\",\"target\":\"" + Forcenameset[j] + "\",\"value\":"+ d+"},";
+ 						}
+ 					}
+ 				}
+ 				jsonStr = jsonStr.substr(0,jsonStr.length-1);
+ 				jsonStr += "]}";
+ 				console.log(count);
+ 				var graph = eval('(' + jsonStr + ')')
+ 				
+ 				document.getElementById("bar").innerHTML = "";
+ 				var svg = d3.select("#bar")
+ 							.append("svg")
+ 							.attr("id","ForceLayer")
+ 						.attr("width", width)
+ 						.attr("height", height);
+
+				var color = d3.scaleOrdinal(d3.schemeCategory20);
+
+				var simulation = d3.forceSimulation()
+    								.force("link", d3.forceLink().id(function(d) { return d.id; }))
+    								.force("charge", d3.forceManyBody())
+    								.force("center", d3.forceCenter(width / 2, height / 2));
+
+				//d3.json("json", function(error, graph) {
+  				//	if (error) throw error;
+
+ 					 link = svg.append("g")
+     								.attr("class", "links")
+    								.selectAll("line")
+    								.data(graph.links)
+    								.enter().append("line")
+      								.attr("stroke-width", function(d) { return Math.sqrt(d.value); });
+
+  					node = svg.append("g")
+      								.attr("class", "nodes")
+    								.selectAll("circle")
+    								.data(graph.nodes)
+    								.enter().append("circle")
+      								.attr("r", 5)
+      								.attr("fill", function(d) { return color(d.group); })
+      								.call(d3.drag()
+          									.on("start", dragstarted)
+          									.on("drag", dragged)
+          									.on("end", dragended));
+
+  					node.append("title")
+      					.text(function(d) { return "Name: "+d.id+"\nWeight: " + d.Weight + "\nHeight: " + d.Height; });
+
+  					simulation
+      					.nodes(graph.nodes)
+      					.on("tick", ticked);
+
+ 					simulation.force("link")
+      						.links(graph.links);
+      				function ticked() {
+    					link
+       						 .attr("x1", function(d) { return d.source.x- margin.right; })
+        					.attr("y1", function(d) { return d.source.y; })
+        					.attr("x2", function(d) { return d.target.x- margin.right; })
+        					.attr("y2", function(d) { return d.target.y; });
+
+   						 node
+       						 .attr("cx", function(d) { return d.x - margin.right; })
+        					.attr("cy", function(d) { return d.y; });
+  					}
+					
+
+					function dragstarted(d) {
+  						if (!d3.event.active) simulation.alphaTarget(0.3).restart();
+  						d.fx = d.x;
+  						d.fy = d.y;
+					}
+
+					function dragged(d) {
+  						d.fx = d3.event.x;
+  						d.fy = d3.event.y;
+					}
+
+					function dragended(d) {
+  						if (!d3.event.active) simulation.alphaTarget(0);
+  						d.fx = null;
+  						d.fy = null;
+					}
+      			}
+ 			
+
+ 		</script>
+ 	</body>
+</html>
